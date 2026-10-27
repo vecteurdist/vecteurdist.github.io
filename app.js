@@ -7,7 +7,9 @@ const CFG = Object.assign({
   phone: "06 93 04 00 85",
   email: "vecteurdist@zohomail.com",
   store: "https://vecteurdist.sumupstore.com",
-  address: "115 avenue du Président Jacques Chirac, 97640 Sada, Mayotte"
+  address: "115 avenue du Président Jacques Chirac, 97640 Sada, Mayotte",
+  director: "Youssouf SAID",            // À VÉRIFIER : nom du Président
+  mediator: "à compléter (nom et site du médiateur choisi)"   // À COMPLÉTER après adhésion à un médiateur
 }, window.VD_CONFIG || {});
 
 const CAT_ICON = {"Outillage":"🔨","Téléphonie":"📱","High-Tech":"🔊","Peinture":"🪣","Quincaillerie":"🔩","Matériaux":"🧱","Plomberie & sanitaire":"🚽"};
@@ -15,7 +17,7 @@ const KIT_IDS = ["clips-pour-croisillons-autonivelants-carrelage-joint-1-5-mm-sa
 const HOURS = [["Lundi","8h–12h · 14h–17h"],["Mardi","8h–12h · 14h–17h"],["Mercredi","8h–12h · 14h–17h"],["Jeudi","8h–12h · 14h–17h"],["Vendredi","14h–17h"],["Samedi","8h–12h · 14h–17h"],["Dimanche","8h–12h"]];
 
 const $ = (s, el=document) => el.querySelector(s);
-const eur = n => n.toLocaleString("fr-FR",{style:"currency",currency:"EUR"});
+const eur = n => (Number(n)||0).toLocaleString("fr-FR",{style:"currency",currency:"EUR"});
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let CATALOG = [], byId = {}, state = {cat:"Tous", q:""};
 
@@ -35,7 +37,7 @@ function badge(){ const n=cartCount(); $("#cartN").textContent=n; $("#cartN").hi
 function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("on"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("on"),1800); }
 
 function thumb(p, cls=""){
-  return p.img ? `<img src="${esc(p.img)}" alt="" loading="lazy" class="${cls}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ico',textContent:'${CAT_ICON[p.cat]||"📦"}'}))">`
+  return p.img ? `<img src="${esc(p.img)}" alt="" loading="lazy" class="${cls}" data-ico="${CAT_ICON[p.cat]||"📦"}">`
                : `<span class="ico">${CAT_ICON[p.cat]||"📦"}</span>`;
 }
 function card(p){
@@ -58,7 +60,7 @@ const VIEWS = {
       <h2>Offres du moment</h2>
       <div class="promos">
         ${kit.length?`<a class="promo" href="#kit" style="text-decoration:none;color:inherit">${thumb(kit[0])}<div><span class="badge">KIT CARRELAGE</span><h3>Carrelage parfaitement plat</h3><p>Clips 1,5 et 2 mm, pince, cales : tout le système autonivelant.</p></div></a>`:""}
-        ${brouette?`<button class="promo" data-open="${esc(brouette.id)}" style="text-align:left;font:inherit;color:inherit">${thumb(brouette)}<div><span class="badge">SPÉCIAL CHANTIER</span><h3>Brouette 90 L — ${eur(brouette.price)}</h3><p>79,90 € l'unité dès 3 achetées, au magasin.</p></div></button>`:""}
+        ${brouette?`<button class="promo" data-open="${esc(brouette.id)}" style="text-align:left;font:inherit;color:inherit">${thumb(brouette)}<div><span class="badge">SPÉCIAL CHANTIER</span><h3>Brouette 90 L — ${eur(brouette.price)}</h3><p>79,90 € l'unité dès 3 achetées : offre valable uniquement au magasin, non appliquée au paiement en ligne.</p></div></button>`:""}
       </div>
       <h2>À découvrir</h2><div class="grid">${photo.map(card).join("")}</div>`;
   },
@@ -95,7 +97,8 @@ const VIEWS = {
             <option value="pickup">Au retrait en magasin (espèces ou carte)</option>
           </select></label>
         <div class="note">📍 Retrait gratuit au magasin de Sada. Nous vous appelons dès que la commande est prête.</div>
-        <button class="btn block" type="submit">${online?"Valider et payer":"Envoyer ma commande"}</button>
+        <label style="display:flex;gap:10px;align-items:flex-start;font-weight:500"><input type="checkbox" id="cCgv" required style="width:auto;margin-top:3px"> <span>J'accepte les <a href="#infos">conditions générales de vente</a> et la <a href="#infos">politique de confidentialité</a>.</span></label>
+        <button class="btn block" type="submit">Commander avec obligation de paiement</button>
       </form>`;
   },
   calcul(){
@@ -122,13 +125,42 @@ const VIEWS = {
           <a class="btn dark" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(CFG.address)}" target="_blank" rel="noopener">Itinéraire</a>
         </div></div>
       <h2>Horaires</h2><div class="card"><dl class="kv">${HOURS.map((h,i)=>`<dt${i===idx?' style="color:var(--orange);font-weight:800"':''}>${h[0]}</dt><dd>${h[1]}</dd>`).join("")}</dl></div>
-      <p class="muted" style="font-size:12.5px;margin-top:16px">VECTEURDIST SAS · RCS Mamoudzou 944 040 351</p>`;
+      <p class="muted" style="font-size:12.5px;margin-top:16px">VECTEURDIST SAS · RCS Mamoudzou 944 040 351 · <a href="#infos">Mentions légales, CGV et confidentialité</a></p>`;
+  },
+  infos(){
+    return `<h2>Informations légales</h2>
+      <div class="card legal">
+      <h3>Mentions légales</h3>
+      <p><b>Éditeur :</b> VECTEURDIST SAS, société par actions simplifiée à associé unique au capital de 100 €, immatriculée au RCS de Mamoudzou sous le n° 944 040 351. Siège : ${esc(CFG.address)}. Téléphone : ${esc(CFG.phone)}. E-mail : ${esc(CFG.email)}.</p>
+      <p><b>Directeur de la publication :</b> ${esc(CFG.director)}, Président de VECTEURDIST SAS.</p>
+      <p><b>Hébergement :</b> application hébergée par GitHub Inc., 88 Colin P. Kelly Jr. Street, San Francisco, CA 94107, États-Unis (github.com) ; service de paiement hébergé par Cloudflare Inc., 101 Townsend St, San Francisco, CA 94107, États-Unis (cloudflare.com).</p>
+      <p><b>Paiement :</b> les paiements par carte sont traités par SumUp. VECTEURDIST n'a jamais accès à vos numéros de carte.</p>
+
+      <h3>Conditions générales de vente</h3>
+      <p><b>1. Champ d'application.</b> Les présentes conditions s'appliquent aux commandes passées à distance via l'application VECTEURDIST (paiement par carte en ligne, ou commande transmise par WhatsApp et payée au retrait), avec retrait au magasin de Sada.</p>
+      <p><b>2. Prix.</b> Les prix sont indiqués en euros, toutes taxes locales comprises (dont l'octroi de mer le cas échéant). TVA non applicable, article 294 du Code général des impôts (Mayotte). Le prix appliqué est celui affiché au moment de la commande. Les offres signalées « au magasin » ne s'appliquent pas aux commandes en ligne.</p>
+      <p><b>3. Commande et paiement.</b> En cliquant sur « Commander avec obligation de paiement », vous passez une commande ferme. Le paiement par carte est réalisé sur la page sécurisée de SumUp ; la commande est confirmée dès que SumUp confirme le paiement. Pour le paiement au retrait, la commande est confirmée par notre appel. Si un article se révèle indisponible, nous vous proposons un remplacement ou le remboursement intégral sous 14 jours.</p>
+      <p><b>4. Retrait.</b> Les articles sont à retirer gratuitement au magasin aux horaires d'ouverture, après notre appel de confirmation, sur présentation de la référence de commande. Aucune livraison n'est assurée pour le moment.</p>
+      <p><b>5. Droit de rétractation.</b> Vous disposez de 14 jours à compter du retrait des articles pour exercer votre droit de rétractation, sans avoir à motiver votre décision (articles L.221-18 et suivants du Code de la consommation). Il suffit de nous adresser une déclaration claire (par e-mail à ${esc(CFG.email)}, par courrier ou au magasin), par exemple avec le modèle ci-dessous. Vous rapportez les articles au magasin dans les 14 jours suivant votre décision ; les frais de retour sont à votre charge. Nous vous remboursons la totalité des sommes versées dans les 14 jours suivant votre décision, par le même moyen de paiement ; nous pouvons différer le remboursement jusqu'à la récupération des articles. Votre responsabilité n'est engagée qu'en cas de dépréciation des articles résultant de manipulations autres que celles nécessaires pour en établir la nature, les caractéristiques et le bon fonctionnement.</p>
+      <p><b>Exceptions (article L.221-28) :</b> le droit de rétractation ne s'applique pas notamment aux biens confectionnés selon vos spécifications ou nettement personnalisés (ex. peinture teintée à la demande, découpe sur mesure), aux biens descellés après la livraison qui ne peuvent être renvoyés pour des raisons d'hygiène ou de protection de la santé, et aux enregistrements ou logiciels descellés.</p>
+      <p><b>Modèle de formulaire de rétractation :</b> « À l'attention de VECTEURDIST SAS, ${esc(CFG.address)}, ${esc(CFG.email)} : je vous notifie par la présente ma rétractation du contrat portant sur la vente du bien ci-dessous : [article], commandé le [date] / retiré le [date], référence [VD-…]. Nom du consommateur : … Adresse : … Date et signature (si envoi papier). »</p>
+      <p><b>6. Garantie légale de conformité.</b> Le consommateur dispose d'un délai de deux ans à compter de la délivrance du bien pour obtenir la mise en œuvre de la garantie légale de conformité en cas d'apparition d'un défaut de conformité. Durant ce délai, il n'est tenu d'établir que l'existence du défaut et non la date de son apparition. La garantie légale de conformité donne au consommateur droit à la réparation ou au remplacement du bien dans un délai de trente jours suivant sa demande, sans frais et sans inconvénient majeur pour lui. Il peut obtenir une réduction du prix en conservant le bien ou mettre fin au contrat en se faisant rembourser intégralement contre restitution du bien si le vendeur refuse la réparation ou le remplacement, si la réparation ou le remplacement intervient après trente jours, ou si un nouveau défaut apparaît. La garantie légale de conformité s'applique sans préjudice de la garantie des vices cachés (articles 1641 à 1649 du Code civil). Le vendeur qui fait obstacle de mauvaise foi à la garantie légale de conformité encourt une amende civile d'un montant maximal de 300 000 € (articles L.217-1 à L.217-32 et L.241-5 du Code de la consommation).</p>
+      <p><b>7. Réclamations et médiation.</b> Contactez-nous d'abord au ${esc(CFG.phone)} ou à ${esc(CFG.email)}. En cas de litige non résolu, vous pouvez recourir gratuitement au médiateur de la consommation : ${esc(CFG.mediator)}. Droit applicable : droit français.</p>
+
+      <h3>Politique de confidentialité</h3>
+      <p><b>Responsable :</b> VECTEURDIST SAS (coordonnées ci-dessus).</p>
+      <p><b>Données et finalité :</b> nom, numéro de téléphone et contenu de la commande, uniquement pour traiter votre commande et vous prévenir quand elle est prête. Base légale : l'exécution du contrat de vente.</p>
+      <p><b>Destinataires :</b> VECTEURDIST ; SumUp pour les paiements par carte ; WhatsApp (Meta) si vous choisissez d'envoyer votre commande par WhatsApp ; nos hébergeurs techniques (GitHub, Cloudflare). Certains de ces prestataires peuvent traiter des données hors de l'Union européenne, avec les garanties prévues par le RGPD (Data Privacy Framework ou clauses contractuelles types). Le panier est conservé seulement sur votre téléphone. Aucune donnée n'est vendue ni utilisée à des fins publicitaires.</p>
+      <p><b>Durée de conservation :</b> 3 ans après votre dernière commande pour la relation client ; 10 ans pour les pièces comptables (obligation légale).</p>
+      <p><b>Vos droits :</b> accès, rectification, effacement, limitation et opposition, en écrivant à ${esc(CFG.email)}. Vous pouvez introduire une réclamation auprès de la CNIL (cnil.fr).</p>
+      <p class="muted" style="font-size:12.5px">Dernière mise à jour : 27 octobre 2026.</p>
+      </div>`;
   }
 };
 
 function render(){
   const v = (location.hash.replace("#","")||"accueil");
-  const view = VIEWS[v] ? v : "accueil";
+  const view = Object.prototype.hasOwnProperty.call(VIEWS, v) ? v : "accueil";
   $("#view").innerHTML = VIEWS[view]();
   document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-current", b.dataset.go===(view==="kit"?"accueil":view)?"page":"false"));
   if(view==="calcul") calc();
@@ -155,6 +187,7 @@ async function checkout(e){
   e.preventDefault();
   const name=$("#cName").value.trim(), phone=$("#cPhone").value.trim(), pay=$("#cPay").value;
   if(name.length<2 || phone.replace(/\D/g,"").length<9){ toast("Indiquez votre nom et votre téléphone"); return; }
+  if(!$("#cCgv").checked){ toast("Merci d'accepter les conditions de vente"); return; }
   const lines = cartLines();
   if(pay==="card" && CFG.checkoutApi){
     const btn = e.submitter; if(btn){ btn.disabled = true; btn.textContent = "Connexion au paiement…"; }
@@ -165,7 +198,7 @@ async function checkout(e){
       if(!r.ok || !j.url) throw new Error(j.error||"Paiement indisponible");
       try{ localStorage.setItem("vd_pending", JSON.stringify({ref:j.reference, total:cartTotal()})); }catch(_){}
       location.href = j.url;
-    }catch(err){ toast("Paiement indisponible, réessayez ou payez au retrait"); if(btn){btn.disabled=false; btn.textContent="Valider et payer";} }
+    }catch(err){ toast("Paiement indisponible, réessayez ou payez au retrait"); if(btn){btn.disabled=false; btn.textContent="Commander avec obligation de paiement";} }
     return;
   }
   const msg = `Bonjour VECTEURDIST, je souhaite commander (retrait à Sada) :\n` +
@@ -174,10 +207,38 @@ async function checkout(e){
   window.open(`https://wa.me/${CFG.whatsapp}?text=${encodeURIComponent(msg)}`, "_blank");
   toast("Commande préparée dans WhatsApp : envoyez le message");
 }
-function afterPay(){
+function payNote(kind, title, text){
+  const color = kind==="ok"?"var(--ok)":"var(--warn)";
+  const old = $("#payNote"); if(old) old.remove();
+  $("#view").insertAdjacentHTML("afterbegin", `<div class="card" id="payNote" style="border-left:5px solid ${color};margin-top:12px"><b>${esc(title)}</b><br><span class="muted">${esc(text)}</span></div>`);
+}
+function getPending(){ try{ return JSON.parse(localStorage.getItem("vd_pending")||"null"); }catch(_){ return null; } }
+function clearPending(){ try{ localStorage.removeItem("vd_pending"); }catch(_){} }
+async function payStatus(ref){
+  if(!CFG.checkoutApi || !/^VD-[A-Z0-9]{6,12}-[A-Z0-9]{4}$/.test(ref)) return "UNKNOWN";
+  try{ const r = await fetch(CFG.checkoutApi.replace(/\/?$/,"/")+"status?ref="+encodeURIComponent(ref)); const j = await r.json(); return j.status||"UNKNOWN"; }catch(_){ return "UNKNOWN"; }
+}
+// La confirmation n'est jamais crue sur parole : on redemande toujours le statut à SumUp via le service
+async function afterPay(){
   const p = new URLSearchParams(location.search);
-  if(p.get("paid")){ store.set({}); badge(); $("#view").insertAdjacentHTML("afterbegin", `<div class="card" style="border-left:5px solid var(--ok);margin-top:12px"><b>Paiement reçu, merci !</b><br><span class="muted">Commande ${esc(p.get("paid"))}. Nous vous appelons dès qu'elle est prête au magasin de Sada.</span></div>`); history.replaceState(null,"",location.pathname+"#panier"); }
-  else if(p.get("unpaid")){ $("#view").insertAdjacentHTML("afterbegin", `<div class="card" style="border-left:5px solid var(--warn);margin-top:12px"><b>Paiement non finalisé</b><br><span class="muted">Votre panier est conservé. Vous pouvez réessayer ou choisir le paiement au retrait.</span></div>`); history.replaceState(null,"",location.pathname+"#panier"); }
+  const pend = getPending();
+  const ref = p.get("paid") || p.get("pending") || p.get("unpaid") || (pend && pend.ref) || "";
+  if(p.toString()) history.replaceState(null,"",location.pathname+"#panier");
+  if(!ref) return;
+  payNote("wait", "Vérification du paiement…", "Un instant, nous interrogeons SumUp.");
+  const st = await payStatus(ref);
+  if(st==="PAID"){
+    clearPending(); store.set({}); badge();
+    if(location.hash==="#panier") render();
+    payNote("ok", "Paiement confirmé, merci !", `Commande ${ref}. Nous vous appelons dès qu'elle est prête au magasin de Sada.`);
+  } else if(st==="PENDING"){
+    payNote("wait", "Paiement en cours de vérification", `Commande ${ref}. Si vous avez payé, nous vous appelons pour confirmer. Ne repayez pas cette commande.`);
+  } else if(st==="FAILED" || st==="EXPIRED"){
+    clearPending();
+    payNote("wait", "Paiement non finalisé", "Votre panier est conservé. Vous pouvez réessayer ou choisir le paiement au retrait.");
+  } else if(p.toString()){
+    payNote("wait", "Paiement en cours de vérification", "Nous n'avons pas encore la confirmation de SumUp. Si vous avez payé, nous vous appelons.");
+  } else { const n=$("#payNote"); if(n) n.remove(); }
 }
 
 /* ---------- fiche produit ---------- */
@@ -219,5 +280,7 @@ fetch("catalog.json").then(r=>r.json()).then(list=>{
   CATALOG = list; byId = Object.fromEntries(list.map(p=>[p.id,p])); badge(); render();
 }).catch(()=>{ $("#view").innerHTML = `<div class="empty">Impossible de charger le catalogue. Vérifiez votre connexion.</div>`; });
 
+document.addEventListener("error", e=>{ const t=e.target; if(t && t.tagName==="IMG" && t.dataset.ico){ t.replaceWith(Object.assign(document.createElement("span"),{className:"ico",textContent:t.dataset.ico})); } }, true);
+(async()=>{ const pend=getPending(); if(pend && !location.search && location.hash!=="#panier"){ const st=await payStatus(pend.ref); if(st==="PAID"){ clearPending(); store.set({}); badge(); toast("Paiement confirmé, merci !"); } else if(st==="FAILED"||st==="EXPIRED"){ clearPending(); } } })();
 if("serviceWorker" in navigator && location.protocol==="https:") navigator.serviceWorker.register("sw.js").catch(()=>{});
 })();

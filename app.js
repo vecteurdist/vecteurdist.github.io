@@ -177,6 +177,7 @@ async function checkout(e){
 function afterPay(){
   const p = new URLSearchParams(location.search);
   if(p.get("paid")){ store.set({}); badge(); $("#view").insertAdjacentHTML("afterbegin", `<div class="card" style="border-left:5px solid var(--ok);margin-top:12px"><b>Paiement reçu, merci !</b><br><span class="muted">Commande ${esc(p.get("paid"))}. Nous vous appelons dès qu'elle est prête au magasin de Sada.</span></div>`); history.replaceState(null,"",location.pathname+"#panier"); }
+  else if(p.get("unpaid")){ $("#view").insertAdjacentHTML("afterbegin", `<div class="card" style="border-left:5px solid var(--warn);margin-top:12px"><b>Paiement non finalisé</b><br><span class="muted">Votre panier est conservé. Vous pouvez réessayer ou choisir le paiement au retrait.</span></div>`); history.replaceState(null,"",location.pathname+"#panier"); }
 }
 
 /* ---------- fiche produit ---------- */

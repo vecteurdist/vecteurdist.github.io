@@ -1,4 +1,1 @@
-// Réglages de l'application VECTEURDIST
-window.VD_CONFIG = {
-  checkoutApi: ""   // à remplir avec l'adresse du service de paiement SumUp quand il sera en ligne
-};
+window.VD_CONFIG = { checkoutApi: "https://vecteurdist-paiement.ys141276.workers.dev/" };

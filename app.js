@@ -82,7 +82,7 @@ const VIEWS = {
   },
   panier(){
     const lines = cartLines();
-    if(!lines.length) return `<h2>Mon panier</h2><div class="empty">Votre panier est vide.<br><br><a class="btn" href="#catalogue">Voir le catalogue</a></div>`;
+    if(!lines.length) return `<h2>Mon panier</h2><div class="empty">Votre panier est vide.<br><br><a class="btn" href="#catalogue">Voir le catalogue</a></div>` + ordersHtml();
     const online = !!CFG.checkoutApi;
     return `<h2>Mon panier</h2><div class="list">${lines.map(({p,q})=>`
       <div class="line">${thumb(p)}<div class="t">${esc(p.name)}<div class="muted">${eur(p.price)}</div></div>
@@ -99,7 +99,7 @@ const VIEWS = {
         <div class="note">📍 Retrait gratuit au magasin de Sada. Nous vous appelons dès que la commande est prête.</div>
         <label style="display:flex;gap:10px;align-items:flex-start;font-weight:500"><input type="checkbox" id="cCgv" required style="width:auto;margin-top:3px"> <span>J'accepte les <a href="#infos">conditions générales de vente</a> et la <a href="#infos">politique de confidentialité</a>.</span></label>
         <button class="btn block" type="submit">Commander avec obligation de paiement</button>
-      </form>`;
+      </form>` + ordersHtml();
   },
   calcul(){
     return `<h2>Calculateur carrelage</h2><p class="muted">Estimez le nombre de carreaux et de croisillons autonivelants pour votre pièce.</p>
@@ -126,6 +126,18 @@ const VIEWS = {
         </div></div>
       <h2>Horaires</h2><div class="card"><dl class="kv">${HOURS.map((h,i)=>`<dt${i===idx?' style="color:var(--orange);font-weight:800"':''}>${h[0]}</dt><dd>${h[1]}</dd>`).join("")}</dl></div>
       <p class="muted" style="font-size:12.5px;margin-top:16px">VECTEURDIST SAS · RCS Mamoudzou 944 040 351 · <a href="#infos">Mentions légales, CGV et confidentialité</a></p>`;
+  },
+  vendeur(){
+    return `<h2>Espace vendeur · retrait</h2>
+      <p class="muted">Scannez le QR code du client. Le paiement est vérifié en direct auprès de SumUp.</p>
+      <div class="card scan">
+        <video id="vVideo" playsinline muted hidden></video>
+        <button class="btn block" id="vStart">📷 Activer la caméra</button>
+        <form class="form" id="vManual" style="margin-top:12px"><label>Ou saisir la référence<input id="vRef" placeholder="VD-XXXXXXXX-XXXX" autocapitalize="characters" autocomplete="off"></label>
+        <button class="btn dark block" type="submit">Vérifier</button></form>
+      </div>
+      <div id="vResult"></div>
+      <p class="muted" style="font-size:12.5px;margin-top:14px">Les retraits marqués sont enregistrés sur ce téléphone uniquement.</p>`;
   },
   infos(){
     return `<h2>Informations légales</h2>
@@ -161,10 +173,12 @@ const VIEWS = {
 function render(){
   const v = (location.hash.replace("#","")||"accueil");
   const view = Object.prototype.hasOwnProperty.call(VIEWS, v) ? v : "accueil";
+  stopScanner();
   $("#view").innerHTML = VIEWS[view]();
   document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-current", b.dataset.go===(view==="kit"?"accueil":view)?"page":"false"));
   if(view==="calcul") calc();
   if(view==="panier") afterPay();
+  if(view==="vendeur") initVendeur();
   window.scrollTo(0,0);
 }
 
@@ -196,7 +210,7 @@ async function checkout(e){
         body: JSON.stringify({customer:{name,phone}, items: lines.map(l=>({id:l.p.id,qty:l.q})), returnUrl: location.origin+location.pathname+"#panier"})});
       const j = await r.json();
       if(!r.ok || !j.url) throw new Error(j.error||"Paiement indisponible");
-      try{ localStorage.setItem("vd_pending", JSON.stringify({ref:j.reference, total:cartTotal()})); }catch(_){}
+      try{ localStorage.setItem("vd_pending", JSON.stringify({ref:j.reference, total:j.total||cartTotal(), date:Date.now(), lines:lines.map(l=>`${l.q} × ${l.p.name}`)})); }catch(_){}
       location.href = j.url;
     }catch(err){ toast("Paiement indisponible, réessayez ou payez au retrait"); if(btn){btn.disabled=false; btn.textContent="Commander avec obligation de paiement";} }
     return;
@@ -228,9 +242,10 @@ async function afterPay(){
   payNote("wait", "Vérification du paiement…", "Un instant, nous interrogeons SumUp.");
   const st = await payStatus(ref);
   if(st==="PAID"){
+    saveOrder(pend && pend.ref===ref ? pend : {ref});
     clearPending(); store.set({}); badge();
     if(location.hash==="#panier") render();
-    payNote("ok", "Paiement confirmé, merci !", `Commande ${ref}. Nous vous appelons dès qu'elle est prête au magasin de Sada.`);
+    payNote("ok", "Paiement confirmé, merci !", `Commande ${ref}. Nous vous appelons dès qu'elle est prête. Présentez le QR code ci-dessous au magasin de Sada.`);
   } else if(st==="PENDING"){
     payNote("wait", "Paiement en cours de vérification", `Commande ${ref}. Si vous avez payé, nous vous appelons pour confirmer. Ne repayez pas cette commande.`);
   } else if(st==="FAILED" || st==="EXPIRED"){
@@ -239,6 +254,80 @@ async function afterPay(){
   } else if(p.toString()){
     payNote("wait", "Paiement en cours de vérification", "Nous n'avons pas encore la confirmation de SumUp. Si vous avez payé, nous vous appelons.");
   } else { const n=$("#payNote"); if(n) n.remove(); }
+}
+
+/* ---------- QR code de retrait (client) ---------- */
+const REF_OK = r => /^VD-[A-Z0-9]{6,12}-[A-Z0-9]{4}$/.test(r);
+function getOrders(){ try{ const o=JSON.parse(localStorage.getItem("vd_orders")||"[]"); return Array.isArray(o)?o.filter(x=>x&&REF_OK(x.ref)):[]; }catch(_){ return []; } }
+function saveOrder(o){
+  if(!o || !REF_OK(o.ref)) return;
+  const list = getOrders().filter(x=>x.ref!==o.ref);
+  list.unshift({ref:o.ref, total:Number(o.total)||null, date:o.date||Date.now(), lines:Array.isArray(o.lines)?o.lines.slice(0,30).map(String):[]});
+  try{ localStorage.setItem("vd_orders", JSON.stringify(list.slice(0,10))); }catch(_){}
+}
+function qrSvg(text){
+  if(typeof qrcode!=="function") return "";
+  const q = qrcode(0,"M"); q.addData(text); q.make();
+  return q.createSvgTag({cellSize:6, margin:4, scalable:true});
+}
+function ordersHtml(){
+  const orders = getOrders();
+  if(!orders.length) return "";
+  return `<h2>Mes commandes payées</h2><p class="muted">Présentez le QR code au magasin pour retirer votre commande.</p>
+    <div class="list">${orders.map(o=>`<div class="card order">
+      <div class="qr">${qrSvg("VDCMD:"+o.ref)}</div>
+      <div><b>${esc(o.ref)}</b><div class="muted">${new Date(o.date).toLocaleDateString("fr-FR")}${o.total?` · ${eur(o.total)}`:""}</div>
+      ${o.lines.length?`<ul>${o.lines.map(l=>`<li>${esc(l)}</li>`).join("")}</ul>`:""}</div></div>`).join("")}</div>`;
+}
+
+/* ---------- espace vendeur : lecture du QR ---------- */
+let scan = null;
+function stopScanner(){ if(scan){ scan.stop=true; if(scan.stream) scan.stream.getTracks().forEach(t=>t.stop()); scan=null; } }
+function getRetires(){ try{ return JSON.parse(localStorage.getItem("vd_retires")||"{}")||{}; }catch(_){ return {}; } }
+function loadJsQR(){ return window.jsQR ? Promise.resolve() : new Promise((ok,ko)=>{ const s=document.createElement("script"); s.src="jsqr.js?v=1"; s.onload=ok; s.onerror=ko; document.head.appendChild(s); }); }
+function initVendeur(){
+  $("#vStart").addEventListener("click", startScanner);
+  $("#vManual").addEventListener("submit", e=>{ e.preventDefault(); checkRef($("#vRef").value.trim().toUpperCase()); });
+}
+async function startScanner(){
+  const v = $("#vVideo"), btn = $("#vStart");
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}, audio:false});
+    stopScanner(); scan = {stream, stop:false};
+    v.srcObject = stream; v.hidden = false; await v.play(); btn.hidden = true;
+    const useNative = "BarcodeDetector" in window && (await BarcodeDetector.getSupportedFormats().catch(()=>[])).includes("qr_code");
+    const det = useNative ? new BarcodeDetector({formats:["qr_code"]}) : null;
+    if(!det) await loadJsQR();
+    const c = document.createElement("canvas"), ctx = c.getContext("2d", {willReadFrequently:true});
+    const me = scan;
+    const tick = async ()=>{
+      if(me.stop) return;
+      if(v.readyState >= 2){
+        let txt = null;
+        if(det){ const r = await det.detect(v).catch(()=>[]); txt = r[0] && r[0].rawValue; }
+        else { c.width = v.videoWidth; c.height = v.videoHeight; ctx.drawImage(v,0,0); const img = ctx.getImageData(0,0,c.width,c.height); const r = window.jsQR(img.data, c.width, c.height, {inversionAttempts:"dontInvert"}); txt = r && r.data; }
+        if(txt){ const ref = String(txt).replace(/^VDCMD:/,"").trim().toUpperCase(); if(REF_OK(ref)){ stopScanner(); v.hidden = true; btn.hidden = false; btn.textContent = "📷 Scanner un autre client"; checkRef(ref); return; } }
+      }
+      setTimeout(tick, 250);
+    };
+    tick();
+  }catch(err){ toast("Caméra indisponible : autorisez l'accès ou saisissez la référence"); }
+}
+async function checkRef(ref){
+  const out = $("#vResult");
+  if(!REF_OK(ref)){ out.innerHTML = `<div class="card verdict bad"><b>Référence invalide</b><br><span class="muted">Format attendu : VD-XXXXXXXX-XXXX</span></div>`; return; }
+  out.innerHTML = `<div class="card verdict"><b>Vérification de ${esc(ref)}…</b></div>`;
+  const st = await payStatus(ref);
+  const ret = getRetires()[ref];
+  if(st==="PAID"){
+    out.innerHTML = `<div class="card verdict ok"><div class="big">✅ PAYÉE</div><b>${esc(ref)}</b>
+      ${ret?`<p class="warn">⚠️ Déjà marquée comme retirée le ${esc(new Date(ret).toLocaleString("fr-FR"))}. Vérifiez avant de remettre quoi que ce soit.</p>`:`<p class="muted">Paiement confirmé par SumUp. Remettez la commande portant cette référence.</p>`}
+      <button class="btn block" id="vDone" ${ret?"disabled":""}>Marquer comme retirée</button></div>`;
+    const b = $("#vDone"); if(b) b.addEventListener("click", ()=>{ const r=getRetires(); r[ref]=Date.now(); try{ localStorage.setItem("vd_retires", JSON.stringify(r)); }catch(_){} b.disabled=true; b.textContent="Retrait enregistré ✔"; });
+  } else {
+    const label = st==="PENDING" ? "⏳ PAIEMENT EN ATTENTE" : st==="FAILED"||st==="EXPIRED" ? "❌ NON PAYÉE" : "❌ INCONNUE";
+    out.innerHTML = `<div class="card verdict bad"><div class="big">${label}</div><b>${esc(ref)}</b><p class="muted">Ne remettez pas la marchandise. Vérifiez dans votre appli SumUp ou demandez au client de payer au comptoir.</p></div>`;
+  }
 }
 
 /* ---------- fiche produit ---------- */
@@ -281,6 +370,6 @@ fetch("catalog.json").then(r=>r.json()).then(list=>{
 }).catch(()=>{ $("#view").innerHTML = `<div class="empty">Impossible de charger le catalogue. Vérifiez votre connexion.</div>`; });
 
 document.addEventListener("error", e=>{ const t=e.target; if(t && t.tagName==="IMG" && t.dataset.ico){ t.replaceWith(Object.assign(document.createElement("span"),{className:"ico",textContent:t.dataset.ico})); } }, true);
-(async()=>{ const pend=getPending(); if(pend && !location.search && location.hash!=="#panier"){ const st=await payStatus(pend.ref); if(st==="PAID"){ clearPending(); store.set({}); badge(); toast("Paiement confirmé, merci !"); } else if(st==="FAILED"||st==="EXPIRED"){ clearPending(); } } })();
+(async()=>{ const pend=getPending(); if(pend && !location.search && location.hash!=="#panier"){ const st=await payStatus(pend.ref); if(st==="PAID"){ saveOrder(pend); clearPending(); store.set({}); badge(); toast("Paiement confirmé : votre QR code de retrait est dans le panier"); } else if(st==="FAILED"||st==="EXPIRED"){ clearPending(); } } })();
 if("serviceWorker" in navigator && location.protocol==="https:") navigator.serviceWorker.register("sw.js").catch(()=>{});
 })();

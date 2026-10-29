@@ -91,6 +91,7 @@ const VIEWS = {
       <form class="form" id="checkout" novalidate>
         <label>Nom et prénom<input id="cName" name="name" autocomplete="name" required></label>
         <label>Téléphone<input id="cPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="06 39 …"></label>
+        <label>E-mail <span class="muted">(confirmation de commande et de paiement)</span><input id="cMail" name="email" type="email" inputmode="email" autocomplete="email" placeholder="vous@exemple.fr"></label>
         <label>Paiement
           <select id="cPay" name="pay">
             ${online?`<option value="card">Carte bancaire maintenant (paiement sécurisé SumUp)</option>`:""}
@@ -161,7 +162,7 @@ const VIEWS = {
 
       <h3>Politique de confidentialité</h3>
       <p><b>Responsable :</b> VECTEURDIST SAS (coordonnées ci-dessus).</p>
-      <p><b>Données et finalité :</b> nom, numéro de téléphone et contenu de la commande, uniquement pour traiter votre commande et vous prévenir quand elle est prête. Base légale : l'exécution du contrat de vente.</p>
+      <p><b>Données et finalité :</b> nom, numéro de téléphone, adresse e-mail et contenu de la commande, uniquement pour traiter votre commande, vous envoyer sa confirmation et vous prévenir quand elle est prête. Base légale : l'exécution du contrat de vente.</p>
       <p><b>Destinataires :</b> VECTEURDIST ; SumUp pour les paiements par carte ; WhatsApp (Meta) si vous choisissez d'envoyer votre commande par WhatsApp ; nos hébergeurs techniques (GitHub, Cloudflare). Certains de ces prestataires peuvent traiter des données hors de l'Union européenne, avec les garanties prévues par le RGPD (Data Privacy Framework ou clauses contractuelles types). Le panier est conservé seulement sur votre téléphone. Aucune donnée n'est vendue ni utilisée à des fins publicitaires.</p>
       <p><b>Durée de conservation :</b> 3 ans après votre dernière commande pour la relation client ; 10 ans pour les pièces comptables (obligation légale).</p>
       <p><b>Vos droits :</b> accès, rectification, effacement, limitation et opposition, en écrivant à ${esc(CFG.email)}. Vous pouvez introduire une réclamation auprès de la CNIL (cnil.fr).</p>
@@ -199,15 +200,16 @@ function calc(){
 /* ---------- commande ---------- */
 async function checkout(e){
   e.preventDefault();
-  const name=$("#cName").value.trim(), phone=$("#cPhone").value.trim(), pay=$("#cPay").value;
+  const name=$("#cName").value.trim(), phone=$("#cPhone").value.trim(), email=$("#cMail").value.trim(), pay=$("#cPay").value;
   if(name.length<2 || phone.replace(/\D/g,"").length<9){ toast("Indiquez votre nom et votre téléphone"); return; }
+  if(pay==="card" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ toast("Indiquez votre e-mail pour recevoir la confirmation"); return; }
   if(!$("#cCgv").checked){ toast("Merci d'accepter les conditions de vente"); return; }
   const lines = cartLines();
   if(pay==="card" && CFG.checkoutApi){
     const btn = e.submitter; if(btn){ btn.disabled = true; btn.textContent = "Connexion au paiement…"; }
     try{
       const r = await fetch(CFG.checkoutApi, {method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({customer:{name,phone}, items: lines.map(l=>({id:l.p.id,qty:l.q})), returnUrl: location.origin+location.pathname+"#panier"})});
+        body: JSON.stringify({customer:{name,phone,email}, items: lines.map(l=>({id:l.p.id,qty:l.q})), returnUrl: location.origin+location.pathname+"#panier"})});
       const j = await r.json();
       if(!r.ok || !j.url) throw new Error(j.error||"Paiement indisponible");
       try{ localStorage.setItem("vd_pending", JSON.stringify({ref:j.reference, total:j.total||cartTotal(), date:Date.now(), lines:lines.map(l=>`${l.q} × ${l.p.name}`)})); }catch(_){}

@@ -5,7 +5,7 @@ const CFG = Object.assign({
   checkoutApi: "",                 // URL du service de paiement SumUp (Cloudflare Worker). Vide = paiement au retrait.
   whatsapp: "262693040085",
   phone: "06 93 04 00 85",
-  email: "vecteurdist@zohomail.com",
+  email: "contact@vecteurdist.com",
   store: "https://vecteurdist.sumupstore.com",
   address: "115 avenue du Président Jacques Chirac, 97640 Sada, Mayotte",
   director: "Youssouf SAID",            // À VÉRIFIER : nom du Président
@@ -120,7 +120,7 @@ const VIEWS = {
       <div class="card"><dl class="kv">
         <dt>Adresse</dt><dd>${esc(CFG.address)}</dd>
         <dt>Téléphone</dt><dd><a href="tel:+262${CFG.phone.replace(/\D/g,'').slice(1)}">${esc(CFG.phone)}</a></dd>
-        <dt>E-mail</dt><dd style="word-break:break-all">${esc(CFG.email)}</dd></dl>
+        <dt>E-mail</dt><dd style="word-break:break-all"><a href="mailto:${esc(CFG.email)}">${esc(CFG.email)}</a></dd></dl>
         <div class="actions">
           <a class="btn" href="https://wa.me/${CFG.whatsapp}" target="_blank" rel="noopener">WhatsApp</a>
           <a class="btn dark" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(CFG.address)}" target="_blank" rel="noopener">Itinéraire</a>

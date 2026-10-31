@@ -1,4 +1,4 @@
-const V="vd-v5"; const CORE=["./","index.html","app.css?v=4","app.js?v=4","config.js?v=4","qrcode.js?v=1","catalog.json","manifest.webmanifest","icon-192.png"];
+const V="vd-v6"; const CORE=["./","index.html","app.css?v=4","app.js?v=5","config.js?v=4","qrcode.js?v=1","catalog.json","manifest.webmanifest","icon-192.png"];
 self.addEventListener("install",e=>{e.waitUntil(caches.open(V).then(c=>c.addAll(CORE)));self.skipWaiting();});
 self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==V).map(x=>caches.delete(x)))));self.clients.claim();});
 self.addEventListener("fetch",e=>{const u=new URL(e.request.url); if(e.request.method!=="GET") return;

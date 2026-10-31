@@ -138,7 +138,7 @@ const VIEWS = {
         <button class="btn dark block" type="submit">Vérifier</button></form>
       </div>
       <div id="vResult"></div>
-      <p class="muted" style="font-size:12.5px;margin-top:14px">Les retraits marqués sont enregistrés sur ce téléphone uniquement.</p>`;
+      <p class="muted" style="font-size:12.5px;margin-top:14px">Les retraits marqués sont enregistrés sur le serveur (code vendeur demandé une fois).</p>`;
   },
   infos(){
     return `<h2>Informations légales</h2>
@@ -220,7 +220,7 @@ async function checkout(e){
   const msg = `Bonjour VECTEURDIST, je souhaite commander (retrait à Sada) :\n` +
     lines.map(l=>`• ${l.q} × ${l.p.name} — ${eur(l.p.price*l.q)}`).join("\n") +
     `\nTotal : ${eur(cartTotal())}\nNom : ${name}\nTél : ${phone}\nPaiement au retrait.`;
-  window.open(`https://wa.me/${CFG.whatsapp}?text=${encodeURIComponent(msg)}`, "_blank");
+  window.open(`https://wa.me/${CFG.whatsapp}?text=${encodeURIComponent(msg)}`, "_blank", "noopener");
   toast("Commande préparée dans WhatsApp : envoyez le message");
 }
 function payNote(kind, title, text){
@@ -230,10 +230,11 @@ function payNote(kind, title, text){
 }
 function getPending(){ try{ return JSON.parse(localStorage.getItem("vd_pending")||"null"); }catch(_){ return null; } }
 function clearPending(){ try{ localStorage.removeItem("vd_pending"); }catch(_){} }
-async function payStatus(ref){
-  if(!CFG.checkoutApi || !/^VD-[A-Z0-9]{6,12}-[A-Z0-9]{4}$/.test(ref)) return "UNKNOWN";
-  try{ const r = await fetch(CFG.checkoutApi.replace(/\/?$/,"/")+"status?ref="+encodeURIComponent(ref)); const j = await r.json(); return j.status||"UNKNOWN"; }catch(_){ return "UNKNOWN"; }
+async function payInfo(ref){
+  if(!CFG.checkoutApi || !/^VD-[A-Z0-9]{6,12}-[A-Z0-9]{4}$/.test(ref)) return {status:"UNKNOWN"};
+  try{ const r = await fetch(CFG.checkoutApi.replace(/\/?$/,"/")+"status?ref="+encodeURIComponent(ref)); const j = await r.json(); return j&&j.status?j:{status:"UNKNOWN"}; }catch(_){ return {status:"UNKNOWN"}; }
 }
+async function payStatus(ref){ return (await payInfo(ref)).status; }
 // La confirmation n'est jamais crue sur parole : on redemande toujours le statut à SumUp via le service
 // Paramètres de retour SumUp, qu'ils soient avant (?paid=…#panier) ou après le hash (#panier?paid=…)
 function returnParams(){
@@ -258,7 +259,8 @@ async function afterPay(){
   }
   if(st==="PAID"){
     saveOrder(pend && pend.ref===ref ? pend : {ref});
-    clearPending(); store.set({}); badge();
+    // Panier vidé seulement pour la commande en attente de ce téléphone (pas via un lien ?paid= reçu)
+    if(pend && pend.ref===ref){ clearPending(); store.set({}); badge(); }
     if(location.hash==="#panier") render();
     payNote("ok", "Paiement confirmé, merci !", `Commande ${ref}. Nous vous appelons dès qu'elle est prête. Présentez le QR code ci-dessous au magasin de Sada.`);
   } else if(st==="PENDING"){
@@ -332,13 +334,26 @@ async function checkRef(ref){
   const out = $("#vResult");
   if(!REF_OK(ref)){ out.innerHTML = `<div class="card verdict bad"><b>Référence invalide</b><br><span class="muted">Format attendu : VD-XXXXXXXX-XXXX</span></div>`; return; }
   out.innerHTML = `<div class="card verdict"><b>Vérification de ${esc(ref)}…</b></div>`;
-  const st = await payStatus(ref);
-  const ret = getRetires()[ref];
+  const j = await payInfo(ref), st = j.status;
+  const ret = j.retire || getRetires()[ref];
+  const lines = Array.isArray(j.lines) ? j.lines : [];
   if(st==="PAID"){
-    out.innerHTML = `<div class="card verdict ok"><div class="big">✅ PAYÉE</div><b>${esc(ref)}</b>
-      ${ret?`<p class="warn">⚠️ Déjà marquée comme retirée le ${esc(new Date(ret).toLocaleString("fr-FR"))}. Vérifiez avant de remettre quoi que ce soit.</p>`:`<p class="muted">Paiement confirmé par SumUp. Remettez la commande portant cette référence.</p>`}
+    // Montant et articles venant du serveur : seule source fiable (l'écran du client peut être modifié)
+    out.innerHTML = `<div class="card verdict ok"><div class="big">✅ PAYÉE${j.total?` · ${eur(j.total)}`:""}</div><b>${esc(ref)}</b>
+      ${lines.length?`<ul>${lines.map(l=>`<li>${esc(l)}</li>`).join("")}</ul>`:`<p class="warn">Contenu introuvable : vérifiez la commande dans SumUp avant de remettre.</p>`}
+      ${ret?`<p class="warn">⚠️ Déjà marquée comme retirée le ${esc(new Date(ret).toLocaleString("fr-FR"))}. Vérifiez avant de remettre quoi que ce soit.</p>`:`<p class="muted">Paiement confirmé par SumUp. Remettez uniquement les articles listés ici (pas ceux affichés sur le téléphone du client). Marquez le retrait avant de remettre.</p>`}
       <button class="btn block" id="vDone" ${ret?"disabled":""}>Marquer comme retirée</button></div>`;
-    const b = $("#vDone"); if(b) b.addEventListener("click", ()=>{ const r=getRetires(); r[ref]=Date.now(); try{ localStorage.setItem("vd_retires", JSON.stringify(r)); }catch(_){} b.disabled=true; b.textContent="Retrait enregistré ✔"; });
+    const b = $("#vDone"); if(b) b.addEventListener("click", async ()=>{
+      const r=getRetires(); r[ref]=Date.now(); try{ localStorage.setItem("vd_retires", JSON.stringify(r)); }catch(_){} b.disabled=true; b.textContent="Retrait enregistré ✔";
+      // Enregistré aussi sur le serveur, pour les autres téléphones vendeur
+      let key=""; try{ key=localStorage.getItem("vd_staff")||""; }catch(_){}
+      if(!key) key=(prompt("Code vendeur (une seule fois sur ce téléphone)")||"").trim();
+      try{ const x=await fetch(CFG.checkoutApi.replace(/\/?$/,"/")+"retrait",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ref,key})}); const k=await x.json();
+        if(!x.ok) throw new Error(k.error||"Erreur serveur");
+        try{ localStorage.setItem("vd_staff",key); }catch(_){}
+        if(k.deja){ b.textContent="⚠️ Déjà retirée le "+new Date(k.retire).toLocaleString("fr-FR"); toast("Attention : commande déjà retirée"); }
+      }catch(err){ if(/vendeur/.test(err.message)) try{ localStorage.removeItem("vd_staff"); }catch(_){} toast("Retrait non enregistré sur le serveur : "+err.message); }
+    });
   } else {
     const label = st==="PENDING" ? "⏳ PAIEMENT EN ATTENTE" : st==="FAILED"||st==="EXPIRED" ? "❌ NON PAYÉE" : "❌ INCONNUE";
     out.innerHTML = `<div class="card verdict bad"><div class="big">${label}</div><b>${esc(ref)}</b><p class="muted">Ne remettez pas la marchandise. Vérifiez dans votre appli SumUp ou demandez au client de payer au comptoir.</p></div>`;

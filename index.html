@@ -10,12 +10,17 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<link rel="stylesheet" href="app.css?v=4">
+<link rel="stylesheet" href="app.css?v=6">
 </head><body>
+<div class="announce"><div class="row"><span>📍 Retrait gratuit au magasin de Sada</span><span>💳 Paiement sécurisé par carte (SumUp) ou au retrait</span><span>📞 On vous appelle dès que votre commande est prête</span></div></div>
 <header class="top"><div class="row">
-  <div class="brand"><i>V</i><div>VECTEURDIST<small>Matériaux · Outillage · High-Tech — Sada</small></div></div>
-  <button class="cartbtn" data-go="panier" aria-label="Panier">Panier <b id="cartN" hidden>0</b></button>
-</div></header>
+  <a class="brand" href="#accueil" aria-label="VECTEURDIST, accueil"><i>V</i><div>VECTEURDIST<small>Matériaux · Outillage · High-Tech — Sada</small></div></a>
+  <form class="hsearch hs-d" role="search"><input type="search" placeholder="Rechercher un article : marteau, clips, câble…" aria-label="Rechercher un article"></form>
+  <button class="cartbtn" data-go="panier" aria-label="Panier">🛒 Panier <b id="cartN" hidden>0</b></button>
+</div>
+<form class="hsearch hs-m" role="search"><input type="search" placeholder="Rechercher un article…" aria-label="Rechercher un article"></form>
+<nav class="hnav row" aria-label="Rayons"><a href="#catalogue" data-rayon="Tous">Catalogue</a><a href="#catalogue" data-rayon="Outillage">Outillage</a><a href="#catalogue" data-rayon="Téléphonie">Téléphonie</a><a href="#catalogue" data-rayon="High-Tech">High-Tech</a><a href="#kit">Kit carrelage</a><a href="#calcul">Calcul carrelage</a><a href="#magasin">Le magasin</a></nav>
+<div class="ticker" id="ticker" hidden></div></header>
 <main id="view" aria-live="polite"><div class="empty">Chargement…</div></main>
 <nav class="tabs" aria-label="Navigation">
   <button data-go="accueil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Accueil</button>
@@ -25,4 +30,4 @@
   <button data-go="magasin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>Magasin</button>
 </nav>
 <div class="toast" id="toast" role="status"></div>
-<script src="config.js?v=4"></script><script src="qrcode.js?v=1"></script><script src="app.js?v=5"></script></body></html>
+<script src="config.js?v=4"></script><script src="qrcode.js?v=1"></script><script src="app.js?v=7"></script></body></html>

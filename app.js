@@ -20,6 +20,10 @@ const $ = (s, el=document) => el.querySelector(s);
 const eur = n => (Number(n)||0).toLocaleString("fr-FR",{style:"currency",currency:"EUR"});
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let CATALOG = [], byId = {}, state = {cat:"Tous", q:""};
+// Invitation d'installation (Android/Chrome) gardée pour le bouton de la page « Installer l'appli »
+let installEvt = null;
+window.addEventListener("beforeinstallprompt", e=>{ e.preventDefault(); installEvt = e; if(location.hash==="#installer") render(); });
+window.addEventListener("appinstalled", ()=>{ installEvt = null; toast("Appli installée ✔"); });
 
 /* ---------- panier (stocké sur le téléphone) ---------- */
 const store = {
@@ -93,7 +97,7 @@ const VIEWS = {
       </section>
       <footer class="foot"><div><b>VECTEURDIST SAS</b>Matériaux, outillage et high-tech à Sada (Mayotte). RCS Mamoudzou 944 040 351.</div>
         <div><b>Contact</b><a href="${telHref()}">${esc(CFG.phone)}</a><br><a href="mailto:${esc(CFG.email)}">${esc(CFG.email)}</a></div>
-        <div><b>Infos</b><a href="#infos">Mentions légales, CGV et confidentialité</a></div></footer>`;
+        <div><b>Infos</b><a href="#installer">📲 Installer l'appli</a><br><a href="#infos">Mentions légales, CGV et confidentialité</a></div></footer>`;
   },
   kit(){
     const kit = KIT_IDS.map(id=>byId[id]).filter(Boolean);
@@ -157,6 +161,28 @@ const VIEWS = {
         </div></div>
       <h2>Horaires</h2><div class="card"><dl class="kv">${HOURS.map((h,i)=>`<dt${i===idx?' style="color:var(--orange);font-weight:800"':''}>${h[0]}</dt><dd>${h[1]}</dd>`).join("")}</dl></div>
       <p class="muted" style="font-size:12.5px;margin-top:16px">VECTEURDIST SAS · RCS Mamoudzou 944 040 351 · <a href="#infos">Mentions légales, CGV et confidentialité</a></p>`;
+  },
+  installer(){
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const installed = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+    const android = `<div class="card step${!ios?" mine":""}"><h3>🤖 Android (Chrome)</h3><ol>
+        <li>Touchez le menu <b>⋮</b> en haut à droite.</li>
+        <li>Choisissez <b>« Installer l'application »</b> ou <b>« Ajouter à l'écran d'accueil »</b>.</li>
+        <li>Confirmez : l'icône VECTEURDIST apparaît sur votre écran.</li></ol></div>`;
+    const iphone = `<div class="card step${ios?" mine":""}"><h3>🍎 iPhone (Safari)</h3><ol>
+        <li>Ouvrez cette page dans <b>Safari</b>.</li>
+        <li>Touchez le bouton <b>Partager</b> <span aria-hidden="true">⬆️</span> en bas de l'écran.</li>
+        <li>Choisissez <b>« Sur l'écran d'accueil »</b>, puis <b>Ajouter</b>.</li></ol></div>`;
+    return `<h2>Installer l'appli VECTEURDIST</h2>
+      ${installed?`<div class="card verdict ok"><div class="big">✅ Appli installée</div><p class="muted">Vous utilisez déjà l'appli VECTEURDIST. Bonnes commandes !</p></div>`:`
+      <p class="muted">Gratuite, sans passer par un store : l'appli s'ajoute en 10 secondes à l'écran d'accueil de votre téléphone.</p>
+      ${installEvt?`<button class="btn block" data-install="1" style="margin:6px 0 14px">📲 Installer l'appli</button>`:""}
+      <div class="steps">${ios?iphone+android:android+iphone}</div>`}
+      <div class="reas" style="margin-top:16px">
+        <div class="re"><span class="ic">⚡</span><div><b>Commande rapide</b><small>Le catalogue et vos prix toujours à portée de main.</small></div></div>
+        <div class="re"><span class="ic">🧾</span><div><b>QR code de retrait</b><small>Retrouvez vos commandes payées dans le panier.</small></div></div>
+      </div>
+      <p style="margin-top:16px"><a class="btn block" href="#catalogue" data-rayon="Tous">Voir le catalogue</a></p>`;
   },
   vendeur(){
     return `<h2>Espace vendeur · retrait</h2>
@@ -417,8 +443,9 @@ function openProduct(id){
 
 /* ---------- événements ---------- */
 document.addEventListener("click", e=>{
-  const t = e.target.closest("[data-add],[data-open],[data-cat],[data-rayon],[data-inc],[data-dec],[data-go],[data-addall],#kAdd");
+  const t = e.target.closest("[data-add],[data-open],[data-cat],[data-rayon],[data-inc],[data-dec],[data-go],[data-addall],[data-install],#kAdd");
   if(!t) return;
+  if(t.dataset.install){ if(installEvt){ installEvt.prompt(); installEvt.userChoice.finally(()=>{ installEvt=null; render(); }); } return; }
   // Rayon depuis l'accueil ou le menu : ouvre le catalogue filtré
   if(t.dataset.rayon){ e.preventDefault(); state.cat=t.dataset.rayon; state.q=""; if(location.hash==="#catalogue") render(); else location.hash="catalogue"; }
   else if(t.dataset.add){ addToCart(t.dataset.add); toast("Ajouté au panier"); }

@@ -295,6 +295,9 @@ async function afterPay(){
     if(pend && pend.ref===ref){ clearPending(); store.set({}); badge(); }
     if(location.hash==="#panier") render();
     payNote("ok", "Paiement confirmé, merci !", `Commande ${ref}. Nous vous appelons dès qu'elle est prête. Présentez le QR code ci-dessous au magasin de Sada.`);
+  } else if(st==="REFUNDED"){
+    clearPending();
+    payNote("wait", "Commande remboursée", `Commande ${ref} : le paiement vous a été remboursé. Elle ne peut plus être retirée au magasin.`);
   } else if(st==="PENDING"){
     payNote("wait", "Paiement en cours de vérification", `Commande ${ref}. Si vous avez payé, nous vous appelons pour confirmer. Ne repayez pas cette commande.`);
   } else if(st==="FAILED" || st==="EXPIRED"){
@@ -386,6 +389,12 @@ async function checkRef(ref){
         if(k.deja){ b.textContent="⚠️ Déjà retirée le "+new Date(k.retire).toLocaleString("fr-FR"); toast("Attention : commande déjà retirée"); }
       }catch(err){ if(/vendeur/.test(err.message)) try{ localStorage.removeItem("vd_staff"); }catch(_){} toast("Retrait non enregistré sur le serveur : "+err.message); }
     });
+  } else if(st==="REFUNDED"){
+    // Paiement remboursé chez SumUp : la commande ne doit plus être remise
+    out.innerHTML = `<div class="card verdict bad"><div class="big">↩️ REMBOURSÉE${j.refunded?` · ${eur(j.refunded)}`:""}</div><b>${esc(ref)}</b>
+      ${lines.length?`<ul>${lines.map(l=>`<li>${esc(l)}</li>`).join("")}</ul>`:""}
+      <p class="warn">Ne remettez pas la marchandise : le paiement${j.total?` de ${eur(j.total)}`:""} a été remboursé au client.</p>
+      ${ret?`<p class="muted">Marquée comme retirée le ${esc(new Date(ret).toLocaleString("fr-FR"))}.</p>`:""}</div>`;
   } else {
     const label = st==="PENDING" ? "⏳ PAIEMENT EN ATTENTE" : st==="FAILED"||st==="EXPIRED" ? "❌ NON PAYÉE" : "❌ INCONNUE";
     out.innerHTML = `<div class="card verdict bad"><div class="big">${label}</div><b>${esc(ref)}</b><p class="muted">Ne remettez pas la marchandise. Vérifiez dans votre appli SumUp ou demandez au client de payer au comptoir.</p></div>`;

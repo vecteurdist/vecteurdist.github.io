@@ -91,6 +91,9 @@ h2{font-family:var(--display);font-weight:900;font-size:22px;margin:18px 0 10px;
 .kv .today{color:var(--orange-d);font-weight:800}
 .foot{display:grid;gap:14px;background:#17191b;color:#a9b0b5;font-size:13px;border-radius:10px;padding:22px;margin-top:30px}
 .foot b{color:#fff;display:block;margin-bottom:6px}.foot a{color:#d6d9db}
+.steps{display:grid;gap:12px}@media(min-width:760px){.steps{grid-template-columns:1fr 1fr}}
+.step h3{margin:0 0 8px;font-size:16px}.step ol{margin:0;padding-left:20px;line-height:1.6;font-size:14.5px}
+.step.mine{border:2px solid var(--orange)}
 @media(min-width:760px){.foot{grid-template-columns:2fr 1fr 1fr}}
 .btn{border:0;background:var(--orange);color:#fff;font-weight:700;padding:11px 16px;border-radius:4px;display:inline-flex;gap:8px;align-items:center;justify-content:center;text-decoration:none}
 .btn:active{background:var(--orange-d)}

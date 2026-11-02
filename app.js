@@ -20,6 +20,12 @@ const $ = (s, el=document) => el.querySelector(s);
 const eur = n => (Number(n)||0).toLocaleString("fr-FR",{style:"currency",currency:"EUR"});
 // Articles vendus au poids (champ "unit" du catalogue, ex. "kg") : prix affiché « / kg », quantité = nombre de kg
 const per = p => p.unit ? ` / ${p.unit}` : "";
+// Prix par lot (champ "pack" du catalogue, ex. {"n":10,"price":25}) : chaque lot complet au prix du lot, le reste à l'unité
+const hasPack = p => !!(p.pack && p.pack.n >= 2 && p.pack.price > 0);
+const packTxt = p => hasPack(p) ? `${eur(p.pack.price)} les ${p.pack.n}` : "";
+const linePrice = (p, q) => hasPack(p)
+  ? (Math.floor(q/p.pack.n)*Math.round(p.pack.price*100) + (q%p.pack.n)*Math.round(p.price*100))/100
+  : p.price*q;
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let CATALOG = [], byId = {}, state = {cat:"Tous", q:""};
 // Invitation d'installation (Android/Chrome) gardée pour le bouton de la page « Installer l'appli »
@@ -36,7 +42,7 @@ let memCart = store.get();
 const cart = () => memCart;
 function addToCart(id, n=1){ const c={...cart()}; c[id]=(c[id]||0)+n; if(c[id]<=0) delete c[id]; store.set(c); badge(); }
 function cartLines(){ return Object.entries(cart()).filter(([id])=>byId[id]).map(([id,q])=>({p:byId[id],q})); }
-function cartTotal(){ return cartLines().reduce((s,l)=>s+l.p.price*l.q,0); }
+function cartTotal(){ return cartLines().reduce((s,l)=>s+linePrice(l.p,l.q),0); }
 function cartCount(){ return cartLines().reduce((s,l)=>s+l.q,0); }
 function badge(){ const n=cartCount(); $("#cartN").textContent=n; $("#cartN").hidden = n===0; }
 
@@ -49,7 +55,7 @@ function thumb(p, cls=""){
 function card(p){
   return `<article class="p">
     <button class="ph" data-open="${esc(p.id)}" aria-label="Voir ${esc(p.name)}">${p.stock?`<span class="stk">● En stock</span>`:""}${thumb(p)}</button>
-    <div class="bd"><span class="ct">${esc(p.cat)}</span><div class="nm">${esc(p.name)}</div>
+    <div class="bd"><span class="ct">${esc(p.cat)}</span><div class="nm">${esc(p.name)}</div>${hasPack(p)?`<div class="muted" style="font-size:12px;font-weight:700">${packTxt(p)}</div>`:""}
       <div class="ft"><span class="price">${eur(p.price)}${per(p)}</span>
       ${p.stock ? `<button class="add" data-add="${esc(p.id)}" aria-label="Ajouter ${esc(p.name)} au panier">+<span> Ajouter</span></button>` : `<span class="oos">Épuisé</span>`}</div></div></article>`;
 }
@@ -121,7 +127,7 @@ const VIEWS = {
     if(!lines.length) return `<h2>Mon panier</h2><div class="empty">Votre panier est vide.<br><br><a class="btn" href="#catalogue">Voir le catalogue</a></div>` + ordersHtml();
     const online = !!CFG.checkoutApi;
     return `<h2>Mon panier</h2><div class="list">${lines.map(({p,q})=>`
-      <div class="line">${thumb(p)}<div class="t">${esc(p.name)}<div class="muted">${eur(p.price)}${per(p)}</div></div>
+      <div class="line">${thumb(p)}<div class="t">${esc(p.name)}<div class="muted">${eur(p.price)}${per(p)}${hasPack(p)?` · ${packTxt(p)}<br><b>${eur(linePrice(p,q))}</b>`:""}</div></div>
         <div class="qty"><button data-dec="${esc(p.id)}" aria-label="Moins">−</button><span>${q}${p.unit?" "+esc(p.unit):""}</span><button data-inc="${esc(p.id)}" aria-label="Plus">+</button></div></div>`).join("")}</div>
       <div class="total"><span>Total</span><b>${eur(cartTotal())}</b></div>
       <form class="form" id="checkout" novalidate>
@@ -278,7 +284,7 @@ async function checkout(e){
     return;
   }
   const msg = `Bonjour VECTEURDIST, je souhaite commander (retrait à Sada) :\n` +
-    lines.map(l=>`• ${l.q}${l.p.unit?" "+l.p.unit:""} × ${l.p.name} — ${eur(l.p.price*l.q)}`).join("\n") +
+    lines.map(l=>`• ${l.q}${l.p.unit?" "+l.p.unit:""} × ${l.p.name} — ${eur(linePrice(l.p,l.q))}`).join("\n") +
     `\nTotal : ${eur(cartTotal())}\nNom : ${name}\nTél : ${phone}\nPaiement au retrait.`;
   window.open(`https://wa.me/${CFG.whatsapp}?text=${encodeURIComponent(msg)}`, "_blank", "noopener");
   toast("Commande préparée dans WhatsApp : envoyez le message");
@@ -437,8 +443,9 @@ function openProduct(id){
     <p class="muted" style="margin:12px 0 4px">${esc(p.cat)}</p><h2 style="margin:0 0 8px">${esc(p.name)}</h2>
     <div class="price" style="font-size:26px">${eur(p.price)}${per(p)}</div>
     ${p.unit?`<p class="muted">Vendu au ${p.unit==="kg"?"kilo":esc(p.unit)} : chaque « + » ajoute 1 ${esc(p.unit)} au panier.</p>`:""}
+    ${hasPack(p)?`<p><b>${packTxt(p)}</b> <span class="muted">au lieu de ${eur(p.price*p.pack.n)} : prix appliqué automatiquement à chaque lot de ${p.pack.n}.</span></p>`:""}
     <p class="muted">${p.stock?"En stock · retrait gratuit à Sada":"Épuisé pour le moment"}</p>
-    <div class="actions">${p.stock?`<button class="btn" data-add="${esc(p.id)}" data-close="1">Ajouter au panier</button>`:`<a class="btn" href="https://wa.me/${CFG.whatsapp}?text=${encodeURIComponent("Bonjour, quand aurez-vous à nouveau : "+p.name+" ?")}" target="_blank" rel="noopener">Me prévenir</a>`}
+    <div class="actions">${p.stock?`<button class="btn" data-add="${esc(p.id)}" data-close="1">Ajouter au panier</button>${hasPack(p)?`<button class="btn" data-add="${esc(p.id)}" data-n="${p.pack.n}" data-close="1">Ajouter ${p.pack.n} (${eur(p.pack.price)})</button>`:""}`:`<a class="btn" href="https://wa.me/${CFG.whatsapp}?text=${encodeURIComponent("Bonjour, quand aurez-vous à nouveau : "+p.name+" ?")}" target="_blank" rel="noopener">Me prévenir</a>`}
     <button class="btn ghost" data-close="1">Fermer</button></div></div>`;
   s.addEventListener("click", ev=>{ if(ev.target===s || ev.target.closest("[data-close]")) setTimeout(()=>s.remove(),0); });
   document.body.appendChild(s);
@@ -451,7 +458,7 @@ document.addEventListener("click", e=>{
   if(t.dataset.install){ if(installEvt){ installEvt.prompt(); installEvt.userChoice.finally(()=>{ installEvt=null; render(); }); } return; }
   // Rayon depuis l'accueil ou le menu : ouvre le catalogue filtré
   if(t.dataset.rayon){ e.preventDefault(); state.cat=t.dataset.rayon; state.q=""; if(location.hash==="#catalogue") render(); else location.hash="catalogue"; }
-  else if(t.dataset.add){ addToCart(t.dataset.add); toast("Ajouté au panier"); }
+  else if(t.dataset.add){ addToCart(t.dataset.add, +t.dataset.n||1); toast("Ajouté au panier"); }
   else if(t.dataset.open){ openProduct(t.dataset.open); }
   else if(t.dataset.cat){ state.cat=t.dataset.cat; render(); }
   else if(t.dataset.inc){ addToCart(t.dataset.inc,1); render(); }

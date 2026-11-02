@@ -18,6 +18,8 @@ const HOURS = [["Lundi","8h–12h · 14h–17h"],["Mardi","8h–12h · 14h–17h
 
 const $ = (s, el=document) => el.querySelector(s);
 const eur = n => (Number(n)||0).toLocaleString("fr-FR",{style:"currency",currency:"EUR"});
+// Articles vendus au poids (champ "unit" du catalogue, ex. "kg") : prix affiché « / kg », quantité = nombre de kg
+const per = p => p.unit ? ` / ${p.unit}` : "";
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let CATALOG = [], byId = {}, state = {cat:"Tous", q:""};
 // Invitation d'installation (Android/Chrome) gardée pour le bouton de la page « Installer l'appli »
@@ -48,7 +50,7 @@ function card(p){
   return `<article class="p">
     <button class="ph" data-open="${esc(p.id)}" aria-label="Voir ${esc(p.name)}">${p.stock?`<span class="stk">● En stock</span>`:""}${thumb(p)}</button>
     <div class="bd"><span class="ct">${esc(p.cat)}</span><div class="nm">${esc(p.name)}</div>
-      <div class="ft"><span class="price">${eur(p.price)}</span>
+      <div class="ft"><span class="price">${eur(p.price)}${per(p)}</span>
       ${p.stock ? `<button class="add" data-add="${esc(p.id)}" aria-label="Ajouter ${esc(p.name)} au panier">+<span> Ajouter</span></button>` : `<span class="oos">Épuisé</span>`}</div></div></article>`;
 }
 const telHref = () => "tel:+262"+CFG.phone.replace(/\D/g,"").slice(1);
@@ -119,8 +121,8 @@ const VIEWS = {
     if(!lines.length) return `<h2>Mon panier</h2><div class="empty">Votre panier est vide.<br><br><a class="btn" href="#catalogue">Voir le catalogue</a></div>` + ordersHtml();
     const online = !!CFG.checkoutApi;
     return `<h2>Mon panier</h2><div class="list">${lines.map(({p,q})=>`
-      <div class="line">${thumb(p)}<div class="t">${esc(p.name)}<div class="muted">${eur(p.price)}</div></div>
-        <div class="qty"><button data-dec="${esc(p.id)}" aria-label="Moins">−</button><span>${q}</span><button data-inc="${esc(p.id)}" aria-label="Plus">+</button></div></div>`).join("")}</div>
+      <div class="line">${thumb(p)}<div class="t">${esc(p.name)}<div class="muted">${eur(p.price)}${per(p)}</div></div>
+        <div class="qty"><button data-dec="${esc(p.id)}" aria-label="Moins">−</button><span>${q}${p.unit?" "+esc(p.unit):""}</span><button data-inc="${esc(p.id)}" aria-label="Plus">+</button></div></div>`).join("")}</div>
       <div class="total"><span>Total</span><b>${eur(cartTotal())}</b></div>
       <form class="form" id="checkout" novalidate>
         <label>Nom et prénom<input id="cName" name="name" autocomplete="name" required></label>
@@ -276,7 +278,7 @@ async function checkout(e){
     return;
   }
   const msg = `Bonjour VECTEURDIST, je souhaite commander (retrait à Sada) :\n` +
-    lines.map(l=>`• ${l.q} × ${l.p.name} — ${eur(l.p.price*l.q)}`).join("\n") +
+    lines.map(l=>`• ${l.q}${l.p.unit?" "+l.p.unit:""} × ${l.p.name} — ${eur(l.p.price*l.q)}`).join("\n") +
     `\nTotal : ${eur(cartTotal())}\nNom : ${name}\nTél : ${phone}\nPaiement au retrait.`;
   window.open(`https://wa.me/${CFG.whatsapp}?text=${encodeURIComponent(msg)}`, "_blank", "noopener");
   toast("Commande préparée dans WhatsApp : envoyez le message");
@@ -433,7 +435,8 @@ function openProduct(id){
   const s = document.createElement("div"); s.className="sheet"; s.setAttribute("role","dialog"); s.setAttribute("aria-label",p.name);
   s.innerHTML = `<div class="in">${p.img?`<img src="${esc(p.img)}" alt="">`:`<div style="font-size:72px;text-align:center">${CAT_ICON[p.cat]||"📦"}</div>`}
     <p class="muted" style="margin:12px 0 4px">${esc(p.cat)}</p><h2 style="margin:0 0 8px">${esc(p.name)}</h2>
-    <div class="price" style="font-size:26px">${eur(p.price)}</div>
+    <div class="price" style="font-size:26px">${eur(p.price)}${per(p)}</div>
+    ${p.unit?`<p class="muted">Vendu au ${p.unit==="kg"?"kilo":esc(p.unit)} : chaque « + » ajoute 1 ${esc(p.unit)} au panier.</p>`:""}
     <p class="muted">${p.stock?"En stock · retrait gratuit à Sada":"Épuisé pour le moment"}</p>
     <div class="actions">${p.stock?`<button class="btn" data-add="${esc(p.id)}" data-close="1">Ajouter au panier</button>`:`<a class="btn" href="https://wa.me/${CFG.whatsapp}?text=${encodeURIComponent("Bonjour, quand aurez-vous à nouveau : "+p.name+" ?")}" target="_blank" rel="noopener">Me prévenir</a>`}
     <button class="btn ghost" data-close="1">Fermer</button></div></div>`;
@@ -472,7 +475,7 @@ function ticker(){
   const t = $("#ticker"); if(!t) return;
   const items = CATALOG.filter(p=>p.stock && p.img).slice(0,24);
   if(items.length < 4){ t.hidden = true; return; }
-  const one = items.map(p=>`<button class="tk" data-open="${esc(p.id)}" aria-label="Voir ${esc(p.name)}, ${eur(p.price)}">${thumb(p)}<span class="tk-n">${esc(p.name)}</span><b>${eur(p.price)}</b></button>`).join("");
+  const one = items.map(p=>`<button class="tk" data-open="${esc(p.id)}" aria-label="Voir ${esc(p.name)}, ${eur(p.price)}${per(p)}">${thumb(p)}<span class="tk-n">${esc(p.name)}</span><b>${eur(p.price)}${per(p)}</b></button>`).join("");
   // Contenu doublé pour une boucle sans saut ; la copie est cachée aux lecteurs d'écran
   t.innerHTML = `<div class="tk-track" style="--d:${items.length*4}s">${one}<span class="tk-copy" aria-hidden="true">${one}</span></div>`;
   t.querySelectorAll(".tk-copy button").forEach(b=>b.tabIndex=-1);

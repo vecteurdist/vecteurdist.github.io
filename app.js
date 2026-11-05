@@ -435,6 +435,43 @@ async function checkRef(ref){
   }
 }
 
+/* ---------- fiche de location (articles sur demande) ---------- */
+function locForm(p){
+  const today = new Date().toLocaleDateString("en-CA");
+  return `<form class="form" id="locForm" data-id="${esc(p.id)}" novalidate>
+    <h3 style="margin:8px 0 0">Fiche de location</h3>
+    <label>Nom et prénom<input id="lName" autocomplete="name" required></label>
+    <label>Téléphone<input id="lPhone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="06 39 …"></label>
+    <label>Lieu du chantier<input id="lPlace" autocomplete="street-address" required placeholder="Commune, quartier"></label>
+    <label>Date de début<input id="lDate" type="date" min="${today}" required></label>
+    <label>Nombre de jours<input id="lDays" type="number" min="1" max="60" step="1" value="1" inputmode="numeric" required></label>
+    <label>Remarque <span class="muted">(facultatif)</span><input id="lNote" maxlength="200"></label>
+    <p style="margin:2px 0"><b>Montant estimé${p.caution?" (hors caution)":""} : <span id="lTotal">${eur(p.price)}</span></b></p>
+    ${p.caution?`<p style="margin:2px 0"><b>Caution : ${eur(p.caution)}</b>. Pièce d'identité à présenter au retrait.</p>`:""}
+    <p class="warn" id="lErr" role="alert" hidden></p>
+    <button class="btn" type="submit">Envoyer ma demande sur WhatsApp</button>
+    <p class="muted" style="margin:0">Le magasin confirme la disponibilité avant toute location. Vos informations servent uniquement à traiter cette demande.</p>
+  </form>`;
+}
+function sendLocation(e){
+  e.preventDefault();
+  const p = byId[e.target.dataset.id]; if(!p) return;
+  const v = id => $(id).value.trim(), days = parseInt(v("#lDays"),10), err = $("#lErr");
+  const today = new Date().toLocaleDateString("en-CA");
+  const bad = v("#lName").length<2 ? "Indiquez votre nom et prénom."
+    : v("#lPhone").replace(/\D/g,"").length<9 ? "Indiquez un numéro de téléphone valide."
+    : !v("#lPlace") ? "Indiquez le lieu du chantier."
+    : !v("#lDate") || v("#lDate")<today ? "Choisissez une date de début à partir d'aujourd'hui."
+    : !(days>=1 && days<=60) ? "Indiquez un nombre de jours entre 1 et 60." : "";
+  err.textContent = bad; err.hidden = !bad;
+  if(bad) return;
+  const msg = [`Bonjour, demande de location : ${p.name}`, `Nom : ${v("#lName")}`, `Téléphone : ${v("#lPhone")}`, `Lieu du chantier : ${v("#lPlace")}`,
+    `Début : ${new Date(v("#lDate")+"T12:00:00").toLocaleDateString("fr-FR")}`, `Durée : ${days} jour(s)`, `Montant estimé${p.caution?" (hors caution)":""} : ${eur(p.price*days)}`]
+    .concat(p.caution?[`Caution : ${eur(p.caution)}, pièce d'identité présentée au retrait`]:[])
+    .concat(v("#lNote")?[`Remarque : ${v("#lNote")}`]:[]).join("\n");
+  window.open(`https://wa.me/${CFG.whatsapp}?text=${encodeURIComponent(msg)}`,"_blank","noopener");
+}
+
 /* ---------- fiche produit ---------- */
 function openProduct(id){
   const p = byId[id]; if(!p) return;
@@ -445,7 +482,8 @@ function openProduct(id){
     ${p.unit?`<p class="muted">Vendu au ${p.unit==="kg"?"kilo":esc(p.unit)} : chaque « + » ajoute 1 ${esc(p.unit)} au panier.</p>`:""}
     ${hasPack(p)?`<p><b>${packTxt(p)}</b> <span class="muted">au lieu de ${eur(p.price*p.pack.n)} : prix appliqué automatiquement à chaque lot de ${p.pack.n}.</span></p>`:""}
     <p class="muted">${p.demande?"Sur demande uniquement : contactez le magasin pour les disponibilités":p.stock?"En stock · retrait gratuit à Sada":"Épuisé pour le moment"}</p>
-    <div class="actions">${p.demande?`<a class="btn" href="${telHref()}">Appeler le ${esc(CFG.phone)}</a><a class="btn" href="https://wa.me/${CFG.whatsapp}?text=${encodeURIComponent("Bonjour, je souhaite des informations pour : "+p.name)}" target="_blank" rel="noopener">WhatsApp</a>`:p.stock?`<button class="btn" data-add="${esc(p.id)}" data-close="1">Ajouter au panier</button>${hasPack(p)?`<button class="btn" data-add="${esc(p.id)}" data-n="${p.pack.n}" data-close="1">Ajouter ${p.pack.n} (${eur(p.pack.price)})</button>`:""}`:`<a class="btn" href="https://wa.me/${CFG.whatsapp}?text=${encodeURIComponent("Bonjour, quand aurez-vous à nouveau : "+p.name+" ?")}" target="_blank" rel="noopener">Me prévenir</a>`}
+    ${p.demande?locForm(p):""}
+    <div class="actions">${p.demande?`<a class="btn ghost" href="${telHref()}">Appeler le ${esc(CFG.phone)}</a>`:p.stock?`<button class="btn" data-add="${esc(p.id)}" data-close="1">Ajouter au panier</button>${hasPack(p)?`<button class="btn" data-add="${esc(p.id)}" data-n="${p.pack.n}" data-close="1">Ajouter ${p.pack.n} (${eur(p.pack.price)})</button>`:""}`:`<a class="btn" href="https://wa.me/${CFG.whatsapp}?text=${encodeURIComponent("Bonjour, quand aurez-vous à nouveau : "+p.name+" ?")}" target="_blank" rel="noopener">Me prévenir</a>`}
     <button class="btn ghost" data-close="1">Fermer</button></div></div>`;
   s.addEventListener("click", ev=>{ if(ev.target===s || ev.target.closest("[data-close]")) setTimeout(()=>s.remove(),0); });
   document.body.appendChild(s);
@@ -471,9 +509,10 @@ document.addEventListener("input", e=>{
   // Recherche de l'en-tête : filtre le catalogue en direct (le champ reste hors de #view, il garde le focus)
   if(e.target.closest(".hsearch")){ state.q=e.target.value; state.cat="Tous"; document.querySelectorAll(".hsearch input").forEach(i=>{ if(i!==e.target) i.value=state.q; }); if(location.hash==="#catalogue") render(); else location.hash="catalogue"; }
   if(["kS","kF","kJ"].includes(e.target.id)) calc();
+  if(e.target.id==="lDays"){ const p=byId[e.target.form.dataset.id], d=parseInt(e.target.value,10); $("#lTotal").textContent = d>=1 ? eur(p.price*d) : "—"; }
 });
 document.addEventListener("change", e=>{ if(["kF","kJ"].includes(e.target.id)) calc(); });
-document.addEventListener("submit", e=>{ if(e.target.id==="checkout") checkout(e); if(e.target.id==="calc") e.preventDefault();
+document.addEventListener("submit", e=>{ if(e.target.id==="checkout") checkout(e); if(e.target.id==="locForm") sendLocation(e); if(e.target.id==="calc") e.preventDefault();
   if(e.target.classList.contains("hsearch")){ e.preventDefault(); const i=e.target.querySelector("input"); i.blur(); if(location.hash!=="#catalogue") location.hash="catalogue"; } });
 window.addEventListener("hashchange", render);
 
